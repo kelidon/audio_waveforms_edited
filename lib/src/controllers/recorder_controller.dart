@@ -36,6 +36,12 @@ class RecorderController extends ChangeNotifier {
 
   bool _isRecording = false;
 
+  /// default notifier triggers updates on every frame while recording
+  /// this one does it only on [_isRecording] change
+  final ValueNotifier<bool> _isRecordingNotifier = ValueNotifier(false);
+
+  ValueNotifier<bool> get isRecordingNotifier => _isRecordingNotifier;
+
   /// A boolean check for state of recording. It is true when recording
   /// is on going otherwise false.
   bool get isRecording => _isRecording;
@@ -107,6 +113,7 @@ class RecorderController extends ChangeNotifier {
           } else {
             throw "Failed to resume recording";
           }
+          _isRecordingNotifier.value = _isRecording;
           notifyListeners();
           return;
         }
@@ -127,6 +134,7 @@ class RecorderController extends ChangeNotifier {
           } else {
             throw "Failed to start recording";
           }
+          _isRecordingNotifier.value = _isRecording;
           notifyListeners();
         }
       } else {
@@ -177,6 +185,7 @@ class RecorderController extends ChangeNotifier {
       if (_isRecording) {
         throw "Failed to pause recording";
       }
+      _isRecordingNotifier.value = _isRecording;
       _timer?.cancel();
       _recorderState = RecorderState.paused;
     }
@@ -201,6 +210,7 @@ class RecorderController extends ChangeNotifier {
 
       if (path != null) {
         _isRecording = false;
+        _isRecordingNotifier.value = _isRecording;
         _timer?.cancel();
         _recorderState = RecorderState.stopped;
         if (callReset) reset();
