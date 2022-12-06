@@ -197,6 +197,12 @@ class AudioPlayer(
         }
     }
 
+    /**
+     *  TODO: contribute frequency as a parameter to pass,
+     *
+     *  just 50 for now...
+     *
+     * **/
     private fun startListening(result: MethodChannel.Result) {
         runnable = object : Runnable {
             override fun run() {
@@ -206,7 +212,7 @@ class AudioPlayer(
                     args[Constants.current] = currentPosition
                     args[Constants.playerKey] = key
                     methodChannel.invokeMethod(Constants.onCurrentDuration, args)
-                    handler.postDelayed(this, 200)
+                    handler.postDelayed(this, 50)
                 } else {
                     result.error(Constants.LOG_TAG, "Can't get current Position of player", "")
                 }
