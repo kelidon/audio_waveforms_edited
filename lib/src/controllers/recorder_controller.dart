@@ -18,9 +18,9 @@ class RecorderController extends ChangeNotifier {
 
   late IosEncoder iosEncoder = IosEncoder.kAudioFormatMPEG4AAC;
 
-  late int sampleRate = 44100;
+  late int sampleRate = 16000;
 
-  late int bitRate = 48000;
+  late int bitRate = 64000;
 
   ///Db we get from native is too high so in Android it the value is subtracted
   ///and in IOS value added
@@ -41,6 +41,7 @@ class RecorderController extends ChangeNotifier {
   final ValueNotifier<bool> _isRecordingNotifier = ValueNotifier(false);
 
   ValueNotifier<bool> get isRecordingNotifier => _isRecordingNotifier;
+
 
   /// A boolean check for state of recording. It is true when recording
   /// is on going otherwise false.
@@ -235,7 +236,7 @@ class RecorderController extends ChangeNotifier {
 
   /// Sets [shouldClearLabels] flag to false.
   void revertClearLabelCall() {
-    ambiguate(WidgetsBinding.instance)?.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       shouldClearLabels = false;
       notifyListeners();
     });

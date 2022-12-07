@@ -109,6 +109,7 @@ class _AudioFileWaveformsState extends State<AudioFileWaveforms>
     super.initState();
     _initialiseVariables();
     _calculateWaveform().whenComplete(() {
+      animationController.forward();
       animation.addListener(() {
         if (mounted) {
           setState(() {
@@ -116,7 +117,6 @@ class _AudioFileWaveformsState extends State<AudioFileWaveforms>
           });
         }
       });
-      animationController.forward();
     });
     animationController = AnimationController(
       vsync: this,

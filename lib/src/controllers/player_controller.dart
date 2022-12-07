@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+// TODO: Remove when fully migrated to flutter 3.3
+import 'dart:typed_data'; //ignore: unnecessary_import
 
 import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:audio_waveforms/src/base/constants.dart';
@@ -16,24 +18,18 @@ class PlayerController extends ChangeNotifier {
   /// Provides data we got after reading audio file.
   Uint8List? get bufferData => _bufferData;
 
-  final List<double> _waveformData = [];
-
-  List<double> get waveformData => _waveformData;
-
   PlayerState _playerState = PlayerState.stopped;
 
   /// Provides current state of the player
   PlayerState get playerState => _playerState;
 
-  bool _shouldRefresh = true;
-
-  bool get shouldRefresh => _shouldRefresh;
-
-  void _setPlayerState(PlayerState state) {
+  void setPlayerState(PlayerState state) {
     _playerState = state;
     PlatformStreams.instance
         .addPlayerStateEvent(PlayerIdentifier(playerKey, state));
   }
+
+  String? _audioFilePath;
 
   int _maxDuration = -1;
 
@@ -45,10 +41,6 @@ class PlayerController extends ChangeNotifier {
   /// An unique key string associated with [this] player only
   String get playerKey => _playerKey.toString();
 
-  final bool _shouldClearLabels = false;
-
-  bool get shouldClearLabels => _shouldClearLabels;
-
   /// A stream to get current state of the player. This stream
   /// will emit event whenever there is change in the playerState.
   Stream<PlayerState> get onPlayerStateChanged =>
@@ -59,17 +51,29 @@ class PlayerController extends ChangeNotifier {
   Stream<int> get onCurrentDurationChanged =>
       PlatformStreams.instance.onDurationChanged.filter(playerKey);
 
-  Stream<List<double>> get onCurrentExtractedWaveformData =>
-      PlatformStreams.instance.onCurrentExtractedWaveformData.filter(playerKey);
-
-  Stream<double> get onExtractionProgress =>
-      PlatformStreams.instance.onExtractionProgress.filter(playerKey);
-
   PlayerController() {
     if (!PlatformStreams.instance.isInitialised) {
       PlatformStreams.instance.init();
     }
     PlatformStreams.instance.playerControllerFactory.addAll({playerKey: this});
+  }
+
+  /// Reads bytes from audio file
+  Future<void> _readAudioFile(String path) async {
+    _audioFilePath = path;
+    File file = File(path);
+    if (await file.exists()) {
+      var bytes = await file.readAsBytes();
+      _bufferData = bytes;
+      if (_bufferData != null) {
+        setPlayerState(PlayerState.readingComplete);
+      } else {
+        throw "Can't read given audio file";
+      }
+      notifyListeners();
+    } else {
+      throw "Please provide a valid file path";
+    }
   }
 
   /// Calls platform to prepare player.
@@ -81,79 +85,25 @@ class PlayerController extends ChangeNotifier {
   /// as mute and 1.0 as max volume. Providing value greater 1.0 is also
   /// treated same as 1.0 (max volume).
   ///
-  /// Waveforms also will be extracted when with function which can be
-  /// accessed using [waveformData]. Passing false to [shouldExtractWaveform]
-  /// will prevent extracting of waveforms.
+  /// This function first reads bytes from audio file so as soon as
+  /// it completes, it prepares audio player.
   ///
-  /// Waveforms also can be extracted using [extractWaveformData] function
-  /// which can be stored locally or over the server. This data can be passed
-  /// directly passed to AudioFileWaveforms widget.
-  /// This will save the resources when extracting waveforms for same file
-  /// everytime.
-  ///
-  /// [noOfSamples] indicates no of extracted data points. This will determine
-  /// number of bars in the waveform.
-  ///
-  /// Defaults to 100.
-  Future<void> preparePlayer({
-    required String path,
-    double? volume,
-    bool shouldExtractWaveform = true,
-    int noOfSamples = 100,
-  }) async {
+  Future<void> preparePlayer(String path, [double? volume]) async {
     path = Uri.parse(path).path;
-    final isPrepared = await AudioWaveformsInterface.instance
-        .preparePlayer(path, playerKey, volume);
-    if (isPrepared) {
-      _maxDuration = await getDuration();
-      _setPlayerState(PlayerState.initialized);
+
+    await _readAudioFile(path);
+    if ((_playerState == PlayerState.readingComplete &&
+        _audioFilePath != null)) {
+      final isPrepared = await AudioWaveformsInterface.instance
+          .preparePlayer(path, _playerKey.toString(), volume);
+      if (isPrepared) {
+        _maxDuration = await getDuration();
+        setPlayerState(PlayerState.initialized);
+      }
+      notifyListeners();
+    } else {
+      throw "Can not prepare player without reading audio file";
     }
-
-    if (shouldExtractWaveform) {
-      extractWaveformData(
-        path: path,
-        noOfSamples: noOfSamples,
-      ).then(
-        (value) {
-          waveformData
-            ..clear()
-            ..addAll(value);
-          notifyListeners();
-        },
-      );
-    }
-    notifyListeners();
-  }
-
-  /// Extracts waveform data from provided audio file path.
-  /// [noOfSamples] indicates number of extracted data points. This will
-  /// determine number of bars in the waveform.
-  ///
-  /// This function will decode whole audio file and will calculate RMS
-  /// according to provided number of samples. So it may take a while to fully
-  /// decode audio file, specifically on android.
-  ///
-  /// For example, an audio file of 58 min and about 18 MB of size took about
-  /// 4 minutes to decode on android while the same file took about 6-7 seconds
-  /// on IOS.
-  ///
-  /// Providing less number if sample doesn't make a difference because it
-  /// still have to decode whole file.
-  ///
-  /// noOfSamples defaults to 100.
-  Future<List<double>> extractWaveformData({
-    required String path,
-    int noOfSamples = 100,
-  }) async {
-    path = Uri.parse(path).path;
-    final result = await AudioWaveformsInterface.instance.extractWaveformData(
-      key: playerKey,
-      path: path,
-      noOfSamples: noOfSamples,
-    );
-    notifyListeners();
-
-    return result;
   }
 
   /// A function to start the player to play/resume the audio.
@@ -163,30 +113,26 @@ class PlayerController extends ChangeNotifier {
   ///
   /// See also:
   /// * [FinishMode]
-  Future<void> startPlayer({
-    FinishMode finishMode = FinishMode.stop,
-    bool forceRefresh = true,
-  }) async {
+  Future<void> startPlayer({FinishMode finishMode = FinishMode.stop}) async {
     if (_playerState == PlayerState.initialized ||
         _playerState == PlayerState.paused) {
       final isStarted = await AudioWaveformsInterface.instance
           .startPlayer(_playerKey.toString(), finishMode);
       if (isStarted) {
-        _setPlayerState(PlayerState.playing);
+        setPlayerState(PlayerState.playing);
       } else {
         throw "Failed to start player";
       }
     }
-    _setRefresh(forceRefresh);
     notifyListeners();
   }
 
-  /// Pauses currently playing audio.
+  /// A function to pause currently playing audio.
   Future<void> pausePlayer() async {
-    final isPaused =
-        await AudioWaveformsInterface.instance.pausePlayer(playerKey);
+    final isPaused = await AudioWaveformsInterface.instance
+        .pausePlayer(_playerKey.toString());
     if (isPaused) {
-      _setPlayerState(PlayerState.paused);
+      setPlayerState(PlayerState.paused);
     }
     notifyListeners();
   }
@@ -196,7 +142,7 @@ class PlayerController extends ChangeNotifier {
     final isStopped = await AudioWaveformsInterface.instance
         .stopPlayer(_playerKey.toString());
     if (isStopped) {
-      _setPlayerState(PlayerState.stopped);
+      setPlayerState(PlayerState.stopped);
     }
     notifyListeners();
   }
@@ -222,7 +168,7 @@ class PlayerController extends ChangeNotifier {
   /// Default to Duration.max.
   Future<int> getDuration([DurationType? durationType]) async {
     final duration = await AudioWaveformsInterface.instance
-        .getDuration(playerKey, durationType?.index ?? 1);
+        .getDuration(_playerKey.toString(), durationType?.index ?? 1);
     return duration ?? -1;
   }
 
@@ -233,7 +179,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> seekTo(int progress) async {
     if (progress < 0) return;
     if (_playerState == PlayerState.playing) {
-      await AudioWaveformsInterface.instance.seekTo(playerKey, progress);
+      await AudioWaveformsInterface.instance
+          .seekTo(_playerKey.toString(), progress);
     }
   }
 
@@ -265,17 +212,6 @@ class PlayerController extends ChangeNotifier {
     await AudioWaveformsInterface.instance.stopAllPlayers();
     PlatformStreams.instance.playerControllerFactory.remove(this);
     super.dispose();
-  }
-
-  /// Sets [_shouldRefresh] flag with provided boolean parameter.
-  void _setRefresh(bool refresh) {
-    _shouldRefresh = refresh;
-  }
-
-  /// Sets [_shouldRefresh] flag with provided boolean parameter.
-  void setRefresh(bool refresh) {
-    _shouldRefresh = refresh;
-    notifyListeners();
   }
 
   @override

@@ -1,16 +1,3 @@
-## 0.2.0
-
-- Reworked waveforms from audio file
-  - Breaking: removed `readingComplete` PlayerState and `visualizerHeight`. With this, added `extractWaveforms` function to extract waveforms.
-  - Added `onCurrentExtractedWaveformData` and `onExtractionProgress` to monitor progress and currently extracted waveform data.
-
-## 0.1.6
-
-- Fixed [#101](https://github.com/SimformSolutionsPvtLtd/audio_waveforms/issues/101) - Fixed setting volume for android throws error
-- Fixed zero duration would cause waveforms not to expand
-- Fixed `postFrameCallback` error for flutter version below 3.0.0
-- Updated default values for bitRate and sampleRate
-
 ## 0.1.5+1
 
 - Added missing import.

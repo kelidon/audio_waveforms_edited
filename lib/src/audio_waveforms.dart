@@ -173,7 +173,7 @@ class _AudioWaveformsState extends State<AudioWaveforms> {
       _totalBackDistance = Offset.zero;
       _dragOffset = Offset.zero;
     }
-    ambiguate(WidgetsBinding.instance)?.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {});
     });
   }

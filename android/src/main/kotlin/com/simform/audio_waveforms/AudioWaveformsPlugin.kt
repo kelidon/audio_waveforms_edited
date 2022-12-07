@@ -121,10 +121,10 @@ class AudioWaveformsPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 }
             }
             Constants.setVolume -> {
-                val volume = call.argument(Constants.volume) as Double?
+                val volume = call.argument(Constants.volume) as Float?
                 val key = call.argument(Constants.playerKey) as String?
                 if (key != null) {
-                    audioPlayers[key]?.setVolume(volume?.toFloat(), result)
+                    audioPlayers[key]?.setVolume(volume, result)
                 } else {
                     result.error(Constants.LOG_TAG, "Player key can't be null", "")
                 }
@@ -135,16 +135,6 @@ class AudioWaveformsPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val key = call.argument(Constants.playerKey) as String?
                 if (key != null) {
                     audioPlayers[key]?.getDuration(result, type)
-                } else {
-                    result.error(Constants.LOG_TAG, "Player key can't be null", "")
-                }
-            }
-            Constants.extractWaveformData -> {
-                val key = call.argument(Constants.playerKey) as String?
-                val path = call.argument(Constants.path) as String?
-                val noOfSample = call.argument(Constants.noOfSamples) as Int?
-                if (key != null) {
-                    audioPlayers[key]?.extractWaveform(result, path, noOfSample)
                 } else {
                     result.error(Constants.LOG_TAG, "Player key can't be null", "")
                 }
@@ -208,11 +198,7 @@ class AudioWaveformsPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private fun initPlayer(playerKey: String) {
         if (audioPlayers[playerKey] == null) {
-            val newPlayer = AudioPlayer(
-                context = applicationContext,
-                channel = channel,
-                playerKey = playerKey,
-            )
+            val newPlayer = AudioPlayer(applicationContext, channel, playerKey)
             audioPlayers[playerKey] = newPlayer
         }
         return
